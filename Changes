@@ -1,6 +1,19 @@
 Revision history for Tie-FieldVals
 ==================================
 
+0.10 Sun 31 October 2004
+------------------------
+
+  * (31 Oct 2004) added xml2fv script
+
+  * (31 Oct 2004) added fv2xml script
+  	Not just the script but the tests for it.
+
+  * (31 Oct 2004) improving description
+  	Added some more stuff to the DESCRIPTION comparing this to
+  other kinds of data files.
+
+
 0.01 Sun 31 October 2004
 ------------------------
 

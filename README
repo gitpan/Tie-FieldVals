@@ -6,7 +6,7 @@ Tie::FieldVals - an array tie for a file of enhanced Field:Value data
 
 ==== VERSION ====
 
-This describes version ``0.01'' of Tie::FieldVals.
+This describes version ``0.10'' of Tie::FieldVals.
 
 
 ==== DESCRIPTION ====
@@ -31,6 +31,16 @@ indication of what value belongs to what field; the problems with that is
 that it is harder to fix corrupted data by hand, and it is harder to add new
 fields, and one can't have multi-line data.
 
+It is likewise better than a CSV (Comma-Separated Values) file, because
+again, with a CSV file, the data is positional and therefore harder to fix
+and harder to change, and again one can't have multi-line data.
+
+This module is both better and worse than file-oriented databases like
+DB_File and its variants and extensions (such as MLDBM). This module does
+not require that each record have a unique key, and the fact that a DBM file
+is binary makes it not only less correctable, but also less portable. On the
+downside, this module isn't as fast.
+
 Naturally, if one's data needs are more complex, it is probably better to
 use a fully-fledged database; this is oriented towards those who don't wish
 to have the overhead of setting up and maintaining a relational database
@@ -42,15 +52,24 @@ selecting and sorting a sub-set from a Tie::FieldVals array, and the
 Tie::FieldVals::Join is a very simple method of joining two files on a
 common field.
 
+This distribution includes the fv2xml script, which converts a
+Tie::FieldVals data file into an XML file, and xml2fv which converts an XML
+file into a Tie::FieldVals data file.
+
 
 ==== REQUIRES ====
 
     Test::More
+
     Carp
     Tie::Array
     Tie::File
     Fcntl
     Data::Dumper
+
+    Getopt::Long
+    Pod::Usage
+    Getopt::ArgvFile
 
 
 ==== INSTALLATION ====

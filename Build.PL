@@ -13,12 +13,15 @@ my $builder = Module::Build->new(
 	     'Tie::Array' => 0,
 	     'Tie::File' => 0,
 	     'Data::Dumper' => 0,
-
+	     'Getopt::Long' => 2.34,
+	     'Pod::Usage' => 0,
+	     'Getopt::ArgvFile' => 1.08,
 	},
     build_requires => {
         'Test::More' => 0,
     },
     #add_to_cleanup      => [ 'Tie-FieldVals-*' ],
+    script_files => [qw(scripts/fv2xml scripts/xml2fv)],
 
 );
 

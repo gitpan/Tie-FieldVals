@@ -3,6 +3,7 @@
 \bCVS\b
 ,v$
 ^_darcs/
+^\.boring$
 
 # distro files
 ^Tie-FieldVals-*
@@ -25,3 +26,5 @@
 ^\.#
 \.swp$
 \.bak$
+
+^\.todo$
