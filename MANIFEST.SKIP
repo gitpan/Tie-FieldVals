@@ -7,6 +7,10 @@
 
 # distro files
 ^Tie-FieldVals-*
+^darcs_prebuild.pl$
+^mod_devaid.conf$
+^old_version.txt$
+^version.txt$
 
 # ExtUtils::MakeMaker generated files and dirs.
 ^Makefile$

@@ -8,11 +8,11 @@ Tie::FieldVals - an array tie for a file of enhanced Field:Value data
 
 =head1 VERSION
 
-This describes version B<0.20> of Tie::FieldVals.
+This describes version B<0.30> of Tie::FieldVals.
 
 =cut
 
-our $VERSION = '0.20';
+our $VERSION = '0.30';
 
 =head1 SYNOPSIS
 
@@ -222,6 +222,9 @@ Create a new instance of the object as tied to an array.
 	mode=>O_RDONLY, cache_size=>1000, memory=>0;
 
     tie @people, 'Tie::FieldVals', datafile=>$datafile,
+	fields=>[qw(Name Email)], mode=>(O_RDWR|O_CREAT);
+
+    tie @people, 'Tie::FieldVals', datafile=>$datafile,
 	mode=>O_RDWR, cache_all=>1;
 
 Arguments:
@@ -231,6 +234,11 @@ Arguments:
 =item datafile
 
 The file with the data in it. (required)
+
+=item fields
+
+Field defintions for creating a new file.  This is ignored if the
+file already exists.
 
 =item mode
 
@@ -273,6 +281,7 @@ sub TIEARRAY {
 	cache_size=>100,
 	cache_all=>0,
 	memory=>10_000_000,
+	fields=>undef,
 	@_
     );
 
@@ -285,7 +294,12 @@ sub TIEARRAY {
     $self->{FILE_RECS} = \@records;
     $self->{OPTIONS} = \%args;
 
-    get_field_names($self);
+    if (!get_field_names($self, $args{fields}))
+    {
+	carp "Tie::FieldVals - failed to get field names",
+	    (-e $args{datafile} ? ''  : " $args{datafile} does not exist");
+    }
+
     $self->{REC_CACHE} = {};
     my $count = @records;
     if ($args{cache_all}) # set the cache to the size of the file
@@ -499,58 +513,61 @@ For debugging: say who called this
 =cut
 sub whowasi { (caller(1))[3] . '()' }
 
-=head2 get_field_names($self, $datafile)
+=head2 get_field_names($self, \@default_fields)
 
 Read the field-name information from the file,
 and set $self to have that info
 
-=cut
-sub get_field_names ($$) {
-    my $self = shift;
-    my $datafile = shift;
-    my @field_names;
+If there are no records in the file (yet) then use
+the default_fields argument as the field names definition.
 
-    # the field info is in the first record
+=cut
+sub get_field_names ($%) {
+    carp &whowasi if $DEBUG;
+    my $self = shift;
+    my $def_fn_ref = shift;
+
     my %row = ();
-    my $row_obj = tie %row,
-    'Tie::FieldVals::Row', fields=>['dummy'];
-    my $rec_str = $self->{FILE_RECS}->[0];
-    if (defined $rec_str)
+    if ($self->{FILE_OBJ}->FETCHSIZE() == 0) # no records
     {
-	$row_obj->set_from_string($rec_str,
-	    override_keys=>1);
+	# check that the field names have been given
+	if (!defined $def_fn_ref
+	    || ref $def_fn_ref ne 'ARRAY')
+	{
+	    return 0;
+	}
+	# set the row fields from the given fields
+	my $row_obj = tie %row,
+	   'Tie::FieldVals::Row', fields=>$def_fn_ref;
+	# give the row fields values of the empty string
+	# (right now they are undefined)
+	foreach my $fn (@{$def_fn_ref})
+	{
+	    $row{$fn} = '';
+	}
+	# get the empty row as a string, and set the file record[0]
+	# to that string
+	my $rec_str = $row_obj->get_as_string();
+	$self->{FILE_RECS}->[0] = $rec_str;
 	@{$self->{field_names}} = @{$row_obj->field_names()};
+    }
+    else
+    {
+	# the field info is in the first record
+	my $row_obj = tie %row,
+	   'Tie::FieldVals::Row', fields=>['dummy'];
+	my $rec_str = $self->{FILE_RECS}->[0];
+	if (defined $rec_str)
+	{
+	    $row_obj->set_from_string($rec_str,
+				      override_keys=>1);
+	    @{$self->{field_names}} = @{$row_obj->field_names()};
+	}
     }
 
     @{$self->{field_names}};
 
 } # get_field_names
-
-=head2 get_xml_field_names($self, $datafile)
-
-Read the field-name information from the file,
-and set $self to have that info
-
-=cut
-sub get_xml_field_names ($$) {
-    my $self = shift;
-    my $datafile = shift;
-    my @field_names;
-
-    {
-	local $/ = '</fields>';
-	# Open the file
-	open(DEEP, $datafile) || die "Can't open ", $datafile, ": $!\n";
-
-	# read in the fields info first
-	my $fields_str = <DEEP>;
-	parse_fields($self, $fields_str);
-	close(DEEP);
-    }
-
-    @{$self->{field_names}};
-
-} # get_xml_field_names
 
 =head2 parse_fields
 
@@ -558,6 +575,7 @@ parse the fields part of the data
 
 =cut
 sub parse_fields ($$) {
+    carp &whowasi if $DEBUG;
     my $self = shift;
     my $fields_str = shift;
 

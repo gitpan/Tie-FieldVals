@@ -8,11 +8,11 @@ Tie::FieldVals::Join::Row - a hash tie for two rows of Tie::FieldVals data
 
 =head1 VERSION
 
-This describes version B<0.20> of Tie::FieldVals::Join::Row.
+This describes version B<0.30> of Tie::FieldVals::Join::Row.
 
 =cut
 
-our $VERSION = '0.20';
+our $VERSION = '0.30';
 
 =head1 SYNOPSIS
 

@@ -8,11 +8,11 @@ Tie::FieldVals::Row - a hash tie for rows (records) of Tie::FieldVals data
 
 =head1 VERSION
 
-This describes version B<0.20> of Tie::FieldVals::Row.
+This describes version B<0.30> of Tie::FieldVals::Row.
 
 =cut
 
-our $VERSION = '0.20';
+our $VERSION = '0.30';
 
 =head1 SYNOPSIS
 
@@ -350,63 +350,6 @@ sub field_count ($$) {
     return $count;
 } # field_count
 
-=head2 nice_value
-
-    $self->nice_value(field_name=>$fname,
-	field_value=>$value,
-	reorder_value_fields=>{Name=>','});
-
-Give the "nice" value of a field.  This is used for things like where
-a field Name: is in the form of Lastname,Firstname
-and one wishes to get the value in the form "Firstname Lastname".
-
-If the given field is not in the B<reorder_value_fields> hash, then
-the "nice" value of the field is simply the value of the field.
-
-=cut
-sub nice_value($%) {
-    my $self = shift;
-    my %args = (
-	field_name=>'',
-	field_value=>'',
-	reorder_value_fields=>undef,
-	@_
-    );
-    my $field_name = $args{field_name};
-    my $val = $args{field_value};
-    if ($val
-	&& defined $args{reorder_value_fields}
-	&& exists $args{reorder_value_fields}->{$field_name}
-	&& defined $args{reorder_value_fields}->{$field_name})
-    {
-	$val = reorder_value($val,
-	    $args{reorder_value_fields}->{$field_name});
-    }
-    return $val;
-} # nice_value
-
-=head2 reorder_value
-
-    reorder_value($value,$separator)
-
-Gives the value "reordered" around a separator char.
-For example Lastname,Firstname becomes "Firstname Lastname"
-if the separator is ','.
-
-=cut
-sub reorder_value($$) {
-    my $value = shift;
-    my $separator = shift;
-
-    my $ret_val = $value;
-    if ($value =~ m/${separator}/)
-    {
-	my ($first, $last) = split(/${separator}/, $value, 2);
-	$ret_val = join(' ', ($last, $first))
-    }
-    $ret_val;
-} # reorder_value
-
 =head2 set_fields_as_vars
 
     $row_obj->set_fields_as_vars($package_name);
@@ -429,20 +372,6 @@ For multi-valued fields, the @I<Field> variable is set, but also the
 $I<Field> variable will be set, to the value of the variable with
 B<field_ind> index. (default: 0)
 
-=item reorder_value_fields
-
-Same as the argument in L</nice_value>.
-
-=item nice_prefix
-
-The prefix for the variable-name for the "nice" value of a variable.
-(default: Nice_)
-
-=item raw_prefix
-
-The prefix for the variable-name for the unprocessed value of a variable.
-(default: Raw_)
-
 =back
 
 =cut
@@ -451,23 +380,16 @@ sub set_fields_as_vars ($;%) {
     my $pkg_name = shift;
     my %args = (
 	field_ind=>0,
-	reorder_value_fields=>undef,
-	nice_prefix=>'Nice_',
-	raw_prefix=>'Raw_',
 	@_
     );
 
     my $field_ind = $args{field_ind};
-    my $nice_prefix = $args{nice_prefix};
-    my $raw_prefix = $args{raw_prefix};
 
     while (my ($key, $value) = each %{$self->{FIELDS}})
     {
 	$key =~ m#([a-zA-Z0-9][-_a-zA-Z0-9]*)#; # keep taint happy
 	my $field = $1;
 	my $varname = "${pkg_name}::${field}";
-	my $nice_varname = "${pkg_name}::${nice_prefix}${field}";
-	my $raw_varname = "${pkg_name}::${raw_prefix}${field}";
 	if (ref $value eq 'ARRAY')
 	{
 	    no strict 'refs';
@@ -477,30 +399,22 @@ sub set_fields_as_vars ($;%) {
 		my $tval = ${$value}[$i];
 		$tval =~ m#([^`]*)#s;
 		my $val = $1;
-		my $niceval = $self->nice_value(field_name=>$field,
-		    field_value=>$val,
-		    reorder_value_fields=>$args{reorder_value_fields});
 		if ($num_vals > 0)
 		{
 		    if ($i == 0)
 		    {
 			$$varname = $val;
 			@$varname = ();
-			$$nice_varname = $niceval;
-			@$nice_varname = ();
 		    }
 		    elsif ($i == $field_ind)
 		    {
 			$$varname = $val;
-			$$nice_varname = $niceval;
 		    }
 		    $$varname[$i] = $val;
-		    $$nice_varname[$i] = $niceval;
 		}
 		else
 		{
 		    $$varname = $val;
-		    $$nice_varname = $niceval;
 		}
 	    }
 	}
@@ -509,11 +423,7 @@ sub set_fields_as_vars ($;%) {
 	    no strict 'refs';
 	    $value =~ m#([^`]*)#s;
 	    my $val = $1;
-	    my $niceval = $self->nice_value(field_name=>$field,
-					    field_value=>$val,
-		    reorder_value_fields=>$args{reorder_value_fields});
 	    $$varname = $val;
-	    $$nice_varname = $niceval;
 	}
     }
 } # set_fields_as_vars
@@ -711,6 +621,7 @@ If a key is not an official key, nothing is set, and it
 complains of error.
 
     $hash{$key} = $val;
+    $hash{$key} = [$v1,$v2,$v3];
     $hash{{$key=>0}} = $val; # 0th element of $key field
     $hash{[$key,2]} = $val; # 3rd element of $key field
 

@@ -8,11 +8,11 @@ Tie::FieldVals::Select - an array tie for a subset of Tie::FieldVals data
 
 =head1 VERSION
 
-This describes version B<0.20> of Tie::FieldVals::Select.
+This describes version B<0.30> of Tie::FieldVals::Select.
 
 =cut
 
-our $VERSION = '0.20';
+our $VERSION = '0.30';
 
 =head1 SYNOPSIS
 
@@ -329,26 +329,39 @@ sub clear_sel_slice {
 
 $sel->sort_records(
     sort_by=>\@sort_fields,
-    sort_numeric=>\%sort_numeric,
-    sort_reversed=>\%sort_reversed)
+    sort_numeric=>{ SeriesOrder=>1 },
+    sort_title=>{ Title=>1 },
+    sort_lastword=>{ Author=>1 },
+    sort_reversed=>{ Date=>1 });
 
 Take the current selected records array and sort it by field names.
 The @sort_fields array contains an array of field names for this data.
 Yes, that's right, you can sort on multiple fields.
 
-You can alter the sort type for a field by giving a sort_numeric hash
-to indicate that a sort is numeric:
+The other arguments are for indications of changes to the type of sorting
+done on the given fields.
 
-    %sort_numeric = (
-	SeriesOrder => 1
-    );
+=over
 
-You can alter the sort direction for a field by giving a sort_reversed
-hash to indicate that the sort order is reversed:
+=item sort_numeric
 
-    %sort_reversed = (
-	Date => 1
-    );
+The given field(s) should be sorted as numbers.
+
+=item sort_title
+
+The given field(s) should be treated as titles: any leading "The "
+or "A " will be ignored.
+
+=item sort_lastword
+
+The given field(s) will be sorted with their last word first
+(such as for surnames).
+
+=item sort_reversed
+
+The given field(s) will be sorted in reverse order.
+
+=back
 
 =cut
 sub sort_records ($%) {
@@ -363,16 +376,10 @@ sub sort_records ($%) {
 
     my @sort_fields = @{$args{sort_by}};
     my @sort_order = ();
-    my %sort_numerically = ();
-    if (defined $args{sort_numeric})
-    {
-	%sort_numerically = %{$args{sort_numeric}};
-    }
-    my %sort_reversed = ();
-    if (defined $args{sort_reversed})
-    {
-	%sort_reversed = %{$args{sort_reversed}};
-    }
+    my %sort_numerically = (defined $args{sort_numeric} ? %{$args{sort_numeric}} : ());
+    my %sort_reversed = (defined $args{sort_reversed} ? %{$args{sort_reversed}} : ());
+    my %sort_title = (defined $args{sort_title} ? %{$args{sort_title}} : ());
+    my %sort_lastword = (defined $args{sort_lastword} ? %{$args{sort_lastword}} : ());
     # filter out any illegal fields
     my $fields_str = join(':', $self->{recs_obj}->field_names());
     $fields_str = ":${fields_str}:";
@@ -391,8 +398,24 @@ sub sort_records ($%) {
 	my $b_row = ${$self->{all_data}}[$b];
 	foreach my $fn (@sort_order)
 	{
-	    my $a_val = $a_row->{$fn};
-	    my $b_val = $b_row->{$fn};
+	    # allow for multi-valued fields
+	    my $ffn = {$fn=>undef};
+	    my @a_arr = @{$a_row->{$ffn}};
+	    my @b_arr = @{$b_row->{$ffn}};
+	    # allow for titles
+	    if ($sort_title{$fn})
+	    {
+		@a_arr = map { s/^(The\s+|A\s+)//; $_ } @a_arr;
+		@b_arr = map { s/^(The\s+|A\s+)//; $_ } @b_arr;
+	    }
+	    # do lastword stuff
+	    if ($sort_lastword{$fn})
+	    {
+		@a_arr = map { s/^(.*)\s+(\w+)$/$2,$1/; $_ } @a_arr;
+		@b_arr = map { s/^(.*)\s+(\w+)$/$2,$1/; $_ } @b_arr;
+	    }
+	    my $a_val = join('###', @a_arr);
+	    my $b_val = join('###', @b_arr);
 	    if (!defined $a_val && !defined $b_val)
 	    {
 		$result = 0;
