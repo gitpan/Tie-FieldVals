@@ -8,11 +8,11 @@ Tie::FieldVals - an array tie for a file of enhanced Field:Value data
 
 =head1 VERSION
 
-This describes version B<0.30> of Tie::FieldVals.
+This describes version B<0.31> of Tie::FieldVals.
 
 =cut
 
-our $VERSION = '0.30';
+our $VERSION = '0.31';
 
 =head1 SYNOPSIS
 
@@ -243,7 +243,8 @@ file already exists.
 =item mode
 
 The mode to open the file with. O_RDONLY means that the file is read-only.
-(default: O_RDWR (read-write))
+O_RDWR means that the file is read-write.
+(default: O_RDONLY)
 
 =item cache_all
 
@@ -261,7 +262,8 @@ The size of the cache (if we aren't caching all the records).
 
 =item memory
 
-The upper limit on the memory consumed by L<Tie::File>.
+The upper limit on the memory consumed by C<Tie::File>.
+(See L<Tie::File>).
 (default: 10,000,000)
 
 Note that there are two caches: the cache of unparsed records maintained

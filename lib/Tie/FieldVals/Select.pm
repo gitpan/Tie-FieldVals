@@ -8,11 +8,11 @@ Tie::FieldVals::Select - an array tie for a subset of Tie::FieldVals data
 
 =head1 VERSION
 
-This describes version B<0.30> of Tie::FieldVals::Select.
+This describes version B<0.31> of Tie::FieldVals::Select.
 
 =cut
 
-our $VERSION = '0.30';
+our $VERSION = '0.31';
 
 =head1 SYNOPSIS
 
@@ -29,7 +29,7 @@ our $VERSION = '0.30';
 
     # sort the records
     $sel_obj->sort_records(sort_by=>@sort_order);
-    
+
 =head1 DESCRIPTION
 
 This is a Tie object to map a SUBSET of the records in a Tie::FieldVals
@@ -154,11 +154,11 @@ Set this selection to a sub-set of itself.  In other words,
 keep the original selection, but perform all operations
 on a slice of it.  Assumes the array is sorted, and that
 the selection is related to the sort order (for example,
-that key1=>value1 where key1 is the first key of the sort
+that I<key1>=>I<value1> where I<key1> is the first key of the sort
 order).
 
     $arr_obj->set_sel_slice(selection=>{$key=>$value},
-		    match_any=>$val2);
+		    match_any=>$val2,
 		    start_at_zero=>0);
 
 =cut
@@ -328,14 +328,14 @@ sub clear_sel_slice {
 =head2 sort_records
 
 $sel->sort_records(
-    sort_by=>\@sort_fields,
+    sort_by=>[qw(Author Series SeriesOrder Title Date)],
     sort_numeric=>{ SeriesOrder=>1 },
     sort_title=>{ Title=>1 },
     sort_lastword=>{ Author=>1 },
     sort_reversed=>{ Date=>1 });
 
 Take the current selected records array and sort it by field names.
-The @sort_fields array contains an array of field names for this data.
+The B<sort_by> array contains an array of field names for this data.
 Yes, that's right, you can sort on multiple fields.
 
 The other arguments are for indications of changes to the type of sorting
@@ -502,6 +502,7 @@ sub sort_records ($%) {
 =head2 get_column
 
 Get the data from a column.
+
     my @col = $obj->get_column(field_name=>$field_name,
 				unique=>1);
 

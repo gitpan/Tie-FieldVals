@@ -8,11 +8,11 @@ Tie::FieldVals::Row - a hash tie for rows (records) of Tie::FieldVals data
 
 =head1 VERSION
 
-This describes version B<0.30> of Tie::FieldVals::Row.
+This describes version B<0.31> of Tie::FieldVals::Row.
 
 =cut
 
-our $VERSION = '0.30';
+our $VERSION = '0.31';
 
 =head1 SYNOPSIS
 
@@ -55,7 +55,7 @@ $ENV{BASH_ENV} = '';
 my $DEBUG = 0;
 
 =head1 OBJECT METHODS
- 
+
 =head2 set_from_string
 
 Set the hash data from an enhanced Field:Value data string.
@@ -759,7 +759,7 @@ sub DESTROY {
 =head1 PRIVATE METHODS
 
 For developer reference only.
- 
+
 =head2 debug
 
 Set debugging on.

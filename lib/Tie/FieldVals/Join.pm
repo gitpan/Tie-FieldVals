@@ -8,11 +8,11 @@ Tie::FieldVals::Join - an array tie for two files of FieldVals data
 
 =head1 VERSION
 
-This describes version B<0.30> of Tie::FieldVals::Join.
+This describes version B<0.31> of Tie::FieldVals::Join.
 
 =cut
 
-our $VERSION = '0.30';
+our $VERSION = '0.31';
 
 =head1 SYNOPSIS
 
@@ -26,7 +26,7 @@ our $VERSION = '0.30';
     my $recs_obj = tie @records, 'Tie::FieldVals::Join',
 	datafile=>$datafile, joinfile=>$joinfile,
 	join_field=>$fieldname, selection=>{$key=>$value};
-    
+
 =head1 DESCRIPTION
 
 This is a Tie object to map the records in two FieldVals data files

@@ -8,11 +8,11 @@ Tie::FieldVals::Join::Row - a hash tie for two rows of Tie::FieldVals data
 
 =head1 VERSION
 
-This describes version B<0.30> of Tie::FieldVals::Join::Row.
+This describes version B<0.31> of Tie::FieldVals::Join::Row.
 
 =cut
 
-our $VERSION = '0.30';
+our $VERSION = '0.31';
 
 =head1 SYNOPSIS
 
@@ -58,7 +58,7 @@ my $DEBUG = 0;
 # Object Methods
 
 =head1 OBJECT METHODS
- 
+
 =head2 set_from_strings
 
 Set the hash data from some enhanced Field:Value data strings.
@@ -515,7 +515,7 @@ sub DESTROY {
 =head1 PRIVATE METHODS
 
 For developer reference only.
- 
+
 =head2 debug
 
 Set debugging on.

@@ -10,11 +10,11 @@ xml2fv - convert an XML file into Tie::FieldVals data.
 
 =head1 VERSION
 
-This describes version B<0.30> of xml2fv.
+This describes version B<0.31> of xml2fv.
 
 =cut
 
-our $VERSION = '0.30';
+our $VERSION = '0.31';
 
 =head1 SYNOPSIS
 
