@@ -8,11 +8,11 @@ Tie::FieldVals - an array tie for a file of enhanced Field:Value data
 
 =head1 VERSION
 
-This describes version B<0.10> of Tie::FieldVals.
+This describes version B<0.20> of Tie::FieldVals.
 
 =cut
 
-our $VERSION = '0.10';
+our $VERSION = '0.20';
 
 =head1 SYNOPSIS
 
@@ -36,7 +36,10 @@ are predefined) and (b) Fields can have multiple values by repeating
 the Field:Value part for a given field.
 
 Because of its use of the Tie::File module, access to each record is
-reasonably fast.
+reasonably fast. The Tie::File module also ensures that (a) the whole file
+doesn't have to be read into memory (b) record changes are written to the
+file straight away (c) record changes don't require the whole file to be
+rewritten, just the part of the file after the change.
 
 The advantage of this setup is that one can have useful data files which
 are plain text, human readable, human editable, and at the same time able
@@ -168,6 +171,45 @@ sub field_names {
     @{$self->{field_names}};
 }
 
+=head2 flock
+
+    $recs_obj->flock(MODE);
+
+Locks the data file.  "MODE" has the same meaning as the second
+argument to the Perl built-in "flock" function; for example
+"LOCK_SH" or "LOCK_EX | LOCK_NB". (These constants are provided
+by the "use Fcntl ':flock';" declaration.)
+
+"MODE" is optional; the default is "LOCK_EX".
+
+When you use "flock" to lock the file, "Tie::FieldVals" assumes that the
+record cache is no longer trustworthy, because another process might have
+modified the file since the last time it was read.  Therefore, a successful
+call to "flock" discards the contents of the record cache.
+
+The best way to unlock a file is to discard the object and untie the
+array.  It is probably unsafe to unlock the file without also untying
+it, because if you do, changes may remain unwritten inside the object.
+That is why there is no shortcut for unlocking.  If you really want to
+unlock the file prematurely, you know what to do; if you don't know
+what to do, then don't do it.
+
+See L<Tie::File/flock> for more information (this calls the 
+flock method of that module).
+
+=cut
+sub flock {
+    carp &whowasi if $DEBUG;
+    my $self = shift;
+
+    # call the Tie::File flock method
+    if ($self->{FILE_OBJ}->flock(@_))
+    {
+	# clear the cache
+	$self->{REC_CACHE} = {};
+    }
+}
+
 =head1 TIE-ARRAY METHODS
 
 =head2 TIEARRAY
@@ -199,6 +241,10 @@ The mode to open the file with. O_RDONLY means that the file is read-only.
 
 If true, cache all the records in the file.  This will speed things up,
 but consume more memory. (default: false)
+
+Note that this merely sets the cache_size to the size of the file when
+the tie is initially made: if you add more records to the file, the
+cache size will not be increased.
 
 =item cache_size
 

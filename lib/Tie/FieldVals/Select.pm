@@ -8,11 +8,11 @@ Tie::FieldVals::Select - an array tie for a subset of Tie::FieldVals data
 
 =head1 VERSION
 
-This describes version B<0.10> of Tie::FieldVals::Select.
+This describes version B<0.20> of Tie::FieldVals::Select.
 
 =cut
 
-our $VERSION = '0.10';
+our $VERSION = '0.20';
 
 =head1 SYNOPSIS
 

@@ -1,6 +1,17 @@
 Revision history for Tie-FieldVals
 ==================================
 
+0.20 Tue 02 November 2004
+-------------------------
+
+  * (2 Nov 2004) removed development support files from MANIFEST
+
+  * (2 Nov 2004) added file locking
+  	Basically uses the file locking of Tie::File.
+
+  * (2 Nov 2004) improved documentation tweaks
+
+
 0.10 Sun 31 October 2004
 ------------------------
 
