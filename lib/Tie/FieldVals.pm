@@ -8,11 +8,11 @@ Tie::FieldVals - an array tie for a file of enhanced Field:Value data
 
 =head1 VERSION
 
-This describes version B<0.31> of Tie::FieldVals.
+This describes version B<0.40> of Tie::FieldVals.
 
 =cut
 
-our $VERSION = '0.31';
+our $VERSION = '0.40';
 
 =head1 SYNOPSIS
 

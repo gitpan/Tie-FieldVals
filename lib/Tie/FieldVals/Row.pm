@@ -8,11 +8,11 @@ Tie::FieldVals::Row - a hash tie for rows (records) of Tie::FieldVals data
 
 =head1 VERSION
 
-This describes version B<0.31> of Tie::FieldVals::Row.
+This describes version B<0.40> of Tie::FieldVals::Row.
 
 =cut
 
-our $VERSION = '0.31';
+our $VERSION = '0.40';
 
 =head1 SYNOPSIS
 
@@ -247,9 +247,10 @@ sub get_as_string ($) {
     foreach my $field (@{$self->{OPTIONS}->{fields}})
     {
 	my $num_vals = $self->field_count($field);
+	my $aref = $self->FETCH(\$field);
 	for (my $i=0; $i < $num_vals; $i++)
 	{
-	    my $val = $self->FETCH({$field=>$i});
+	    my $val = $aref->[$i];
 	    $out .= "${field}:";
 	    $out .= $val;
 	    $out .= "\n";
@@ -276,9 +277,10 @@ sub get_xml_string ($) {
     foreach my $field (@{$self->{OPTIONS}->{fields}})
     {
 	my $num_vals = $self->field_count($field);
+	my $aref = $self->FETCH(\$field);
 	for (my $i=0; $i < $num_vals; $i++)
 	{
-	    my $val = $self->FETCH({$field=>$i});
+	    my $val = $$aref[$i];
 	    $val =~ s/&/&amp;/g;
 	    $val =~ s/</&lt;/g;
 	    $val =~ s/>/&gt;/g;
@@ -536,13 +538,27 @@ sub TIEHASH {
 =head2 FETCH
 
 Get a key=>value from the hash.
-Some values may be multi-values, and can be gotten by array index.
+Some values may be multi-values, and can either be gotten as an array
+reference or joined together.
 If a key is not an official key, undefined is returned.
 
     $val = $hash{$key}
-    $val = $hash{{$key=>0}}; # 0th element of $key field
-    $val = $hash{[$key,2]}; # 3rd element of $key field
-    $val = $hash{{$key=>undef}}; # whole key field as array ref
+
+Gets the value, or if it is a multi-value, gets the values joined
+by spaces.
+
+    $val = $hash{\$key}
+
+Gets the whole key field as an array ref.
+
+    $match = {$key=>'##'};
+    $val = $hash{$match};
+
+    $match = [$key, '##'];
+    $val = $hash{$match};
+
+Gets the value, or if it is a multi-value, gets the values joined
+by the given string (in this case, '##').
 
 See also L</field_count> to determine whether a field is a multi-valued
 field.
@@ -552,25 +568,25 @@ sub FETCH {
     carp &whowasi if $DEBUG;
     my ($self, $match) = @_;
     my $key = '';
-    my $ind;
-    my $matching = 0;
+    my $separator = ' ';
+    my $return_array = 0;
 
     if (ref $match) {
-	# we're doing a compare, but only use the first
-	# key - compare pair
-	if (ref $match eq 'HASH') {
+	if (ref $match eq 'SCALAR') {
+	    $key = $$match;
+	    $return_array = 1;
+	}
+	elsif (ref $match eq 'HASH') {
 	    my @keys = keys %{$match};
 	    $key = shift @keys;
-	    $ind = $match->{$key};
-	    $matching = 1;
+	    $separator = $match->{$key};
 	}
 	elsif (ref $match eq 'ARRAY') {
 	    $key = shift @{$match};
-	    $ind = shift @{$match};
-	    $matching = 1;
+	    $separator = shift @{$match};
 	}
 	else {
-	    carp "invalid match to FETCH hash";
+	    carp "invalid match '", ref $match,  "' to FETCH hash";
 	    return undef;
 	}
     }
@@ -584,27 +600,18 @@ sub FETCH {
 
     if (ref $self->{FIELDS}->{$key} eq 'ARRAY') {
 	my $count = @{$self->{FIELDS}->{$key}};
-	# if ind is undefined, return whole array
-	if ($matching
-	    && !defined $ind) {
+
+	if ($return_array)
+	{
 	    return $self->{FIELDS}->{$key};
 	}
 	# if there's only one, return it
 	elsif ($count == 1) {
 	    return @{$self->{FIELDS}->{$key}}[0];
 	}
-	elsif ($matching
-	    && $ind < $count) {
-	    return @{$self->{FIELDS}->{$key}}[$ind];
-	}
-	# if too big, get the last one
-	elsif ($matching
-	    && $ind >= $count) {
-	    return @{$self->{FIELDS}->{$key}}[$count - 1];
-	}
-	# otherwise return the first field
 	else {
-	    return @{$self->{FIELDS}->{$key}}[0];
+	    # otherwise, return the values joined together
+	    return join($separator, @{$self->{FIELDS}->{$key}});
 	}
     }
     else {
@@ -616,65 +623,42 @@ sub FETCH {
 =head2 STORE
 
 Add a key=>value to the hash.
-Some values may be multi-values, and can be set by array index.
+Either add a single value, or an array reference to create a
+multi-value.
+
 If a key is not an official key, nothing is set, and it
 complains of error.
 
     $hash{$key} = $val;
     $hash{$key} = [$v1,$v2,$v3];
-    $hash{{$key=>0}} = $val; # 0th element of $key field
-    $hash{[$key,2]} = $val; # 3rd element of $key field
 
 =cut
 sub STORE {
     carp &whowasi if $DEBUG;
     my ($self, $match, $val) = @_;
     my $key = '';
-    my $ind = 0;
-    my $matching = 0;
 
     if (ref $match) {
-	# we're doing a compare, but only use the first
-	# key - compare pair
-	if (ref $match eq 'HASH') {
-	    my @keys = keys %{$match};
-	    $key = shift @keys;
-	    $ind = $match->{$key};
-	    $matching = 1;
-	}
-	elsif (ref $match eq 'ARRAY') {
-	    $key = shift @{$match};
-	    $ind = shift @{$match};
-	    $matching = 1;
-	}
-	else {
-	    carp "invalid match to STORE hash";
-	    return undef;
-	}
+	carp "invalid match '", ref $match,  "' to STORE hash";
+	return undef;
     }
     else {
 	$key = $match; # just a plain key
     }
     unless (exists $self->{FIELDS}->{$key}) {
 
-	croak "invalid key [$key] in hash\n";
-	return;
+	carp "invalid key [$key] in hash\n";
+	return undef;
     }
 
     if (ref $val) {
-	$self->{FIELDS}->{$key} = $val;
-    }
-    elsif ($matching
-	   && ref $self->{FIELDS}->{$key} eq 'ARRAY') {
-	my $count = @{$self->{FIELDS}->{$key}};
-	if ($ind >= $count) {
-	    push @{$self->{FIELDS}->{$key}}, $val;
+	if (ref $val eq 'ARRAY') {
+	    $self->{FIELDS}->{$key} = $val;
 	}
-	elsif ($ind >= 0 && $ind < $count) {
-	    @{$self->{FIELDS}->{$key}}[$ind] = $val;
-	}
-	else {
-	    @{$self->{FIELDS}->{$key}}[0] = $val;
+	else
+	{
+	    carp "invalid value reference '", ref $val,  "' to STORE hash";
+	    return undef;
 	}
     }
     else {

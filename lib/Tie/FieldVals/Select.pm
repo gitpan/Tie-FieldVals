@@ -8,11 +8,11 @@ Tie::FieldVals::Select - an array tie for a subset of Tie::FieldVals data
 
 =head1 VERSION
 
-This describes version B<0.31> of Tie::FieldVals::Select.
+This describes version B<0.40> of Tie::FieldVals::Select.
 
 =cut
 
-our $VERSION = '0.31';
+our $VERSION = '0.40';
 
 =head1 SYNOPSIS
 
@@ -399,9 +399,8 @@ sub sort_records ($%) {
 	foreach my $fn (@sort_order)
 	{
 	    # allow for multi-valued fields
-	    my $ffn = {$fn=>undef};
-	    my @a_arr = @{$a_row->{$ffn}};
-	    my @b_arr = @{$b_row->{$ffn}};
+	    my @a_arr = @{$a_row->{\$fn}};
+	    my @b_arr = @{$b_row->{\$fn}};
 	    # allow for titles
 	    if ($sort_title{$fn})
 	    {

@@ -8,11 +8,11 @@ Tie::FieldVals::Join::Row - a hash tie for two rows of Tie::FieldVals data
 
 =head1 VERSION
 
-This describes version B<0.31> of Tie::FieldVals::Join::Row.
+This describes version B<0.40> of Tie::FieldVals::Join::Row.
 
 =cut
 
-our $VERSION = '0.31';
+our $VERSION = '0.40';
 
 =head1 SYNOPSIS
 
@@ -321,37 +321,51 @@ sub TIEHASH {
 
 =head2 FETCH
 
-Get a key=>value from the hash
+Get a key=>value from the hash.
+
+Some values may be multi-values, and can either be gotten as an array
+reference or joined together.
+If a key is not an official key, undefined is returned.
 
     $val = $hash{$key}
-    $val = $hash{{$key=>0}}; # 0th element of $key field
-    $val = $hash{[$key,2]}; # 3rd element of $key field
-    $val = $hash{{$key=>undef}}; # whole key field as array ref
+
+Gets the value, or if it is a multi-value, gets the values joined
+by spaces.
+
+    $val = $hash{\$key}
+
+Gets the whole key field as an array ref.
+
+    $match = {$key=>'##'};
+    $val = $hash{$match};
+
+    $match = [$key, '##'];
+    $val = $hash{$match};
+
+Gets the value, or if it is a multi-value, gets the values joined
+by the given string (in this case, '##').
 
 =cut
 sub FETCH {
     carp &whowasi if $DEBUG;
     my ($self, $match) = @_;
     my $key = '';
-    my $ind;
-    my $matching = 0;
+    my $return_array = 0;
 
     if (ref $match) {
-	# we're doing a compare, but only use the first
-	# key - compare pair
-	if (ref $match eq 'HASH') {
+	if (ref $match eq 'SCALAR') {
+	    $key = $$match;
+	    $return_array = 1;
+	}
+	elsif (ref $match eq 'HASH') {
 	    my @keys = keys %{$match};
 	    $key = shift @keys;
-	    $ind = $match->{$key};
-	    $matching = 1;
 	}
 	elsif (ref $match eq 'ARRAY') {
 	    $key = shift @{$match};
-	    $ind = shift @{$match};
-	    $matching = 1;
 	}
 	else {
-	    carp "invalid match to FETCH hash";
+	    carp "invalid match '", ref $match,  "' to FETCH hash";
 	    return undef;
 	}
     }
@@ -372,42 +386,35 @@ sub FETCH {
 
 =head2 STORE
 
-Add a key=>value to the hash
+Add a key=>value to the hash.
+
+Either add a single value, or an array reference to create a
+multi-value.
+
+If a key is not an official key, nothing is set, and it
+complains of error.
 
     $hash{$key} = $val;
-    $hash{{$key=>0}} = $val; # 0th element of $key field
-    $hash{[$key,2]} = $val; # 3rd element of $key field
+    $hash{$key} = [$v1,$v2,$v3];
 
 =cut
 sub STORE {
     carp &whowasi if $DEBUG;
     my ($self, $match, $val) = @_;
     my $key = '';
-    my $ind = 0;
-    my $matching = 0;
 
     if (ref $match) {
-	# we're doing a compare, but only use the first
-	# key - compare pair
-	if (ref $match eq 'HASH') {
-	    my @keys = keys %{$match};
-	    $key = shift @keys;
-	    $ind = $match->{$key};
-	    $matching = 1;
-	}
-	elsif (ref $match eq 'ARRAY') {
-	    $key = shift @{$match};
-	    $ind = shift @{$match};
-	    $matching = 1;
-	}
-	else {
-	    carp "invalid match to STORE hash";
-	    return undef;
-	}
+	carp "invalid match '", ref $match,  "' to STORE hash";
+	return undef;
     }
     else {
 	$key = $match; # just a plain key
     }
+    if (ref $val && ref $val ne 'ARRAY') {
+	carp "invalid value reference '", ref $val,  "' to STORE hash";
+	return undef;
+    }
+
     my $found = 0;
     for (my $i=0; $i < @{$self->{ROWS}}; $i++)
     {
@@ -419,7 +426,8 @@ sub STORE {
     }
     if (!$found)
     {
-	croak "invalid key [$key] in hash\n";
+	carp "invalid key [$key] in hash\n";
+	return undef;
     }
 
 } # STORE

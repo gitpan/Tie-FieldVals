@@ -1,6 +1,30 @@
 Revision history for Tie-FieldVals
 ==================================
 
+0.40 Fri 05 November 2004
+-------------------------
+
+  * (5 Nov 2004) changed accessing of row hashes
+  	I realized that, when I was using them, there were really
+  only two ways I wanted to access the Tie::FieldVals::Row hashes:
+  either as a reference to an array, because I wanted to go through
+  every multi-valued item one at a time; or as a single scalar value
+  (such as when printing out or comparing values).  Also because the
+  $hash{$key=>$something} method of accessing things was annoying,
+  because Perl kept on saying it was a syntax error, I simplified
+  both FETCH and STORE operations for Tie::FieldVals::Row (and
+  Tie::FieldVals::Join::Row).
+  	Now there are three modes of FETCHing and two ways of
+  STOREing.
+  	The FETCH operation accepts:
+    - a simple key, which gives a simple (possibly joined) value
+    - a reference to a simple key, which gives a reference to an array
+    - a reference to a hash or array of two values, one of which is the key,
+    the other of which is the string with which to join multi-values.
+  	The STORE operation only allows simple scalar keys, and accepts
+  either a scalar or a reference to an array for the stored value.
+
+
 0.31 Fri 05 November 2004
 -------------------------
 

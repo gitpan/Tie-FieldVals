@@ -8,11 +8,11 @@ Tie::FieldVals::Join - an array tie for two files of FieldVals data
 
 =head1 VERSION
 
-This describes version B<0.31> of Tie::FieldVals::Join.
+This describes version B<0.40> of Tie::FieldVals::Join.
 
 =cut
 
-our $VERSION = '0.31';
+our $VERSION = '0.40';
 
 =head1 SYNOPSIS
 
