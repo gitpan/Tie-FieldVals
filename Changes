@@ -1,0 +1,28 @@
+Revision history for Tie-FieldVals
+==================================
+
+0.01 Sun 31 October 2004
+------------------------
+
+  * (31 Oct 2004) added Join test
+
+  * (31 Oct 2004) updated boringfile
+  	Set a separate boringfile so that it considers the perl build
+  files to be boring.
+
+  * (30 Oct 2004) tweaking auto-build stuff
+  	Setting the pre-build stuff, and auto-generating TODO and README.
+
+  * (30 Oct 2004) improved documentation
+
+  * (30 Oct 2004) tweaking tests
+  	Removing some warnings and making safer.
+
+  * (29 Oct 2004) more tests and fix
+  	Fixed Row so that numeric compares of empty strings are done
+  as a zero.  Added tests of simple functionality and selection.
+
+  * (29 Oct 2004) initial checkin
+  	This is stuff extracted out of the GenRepAr suite, and made into
+  independent modules.
+
