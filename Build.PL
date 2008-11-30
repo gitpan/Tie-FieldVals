@@ -10,6 +10,7 @@ my $builder = Module::Build->new(
 	requires            => {
 	     'Carp' => 0,
 	     'Fcntl' => 0,
+	     'File::Basename' => 0,
 	     'Tie::Array' => 0,
 	     'Tie::File' => 0,
 	     'Data::Dumper' => 0,
@@ -20,16 +21,9 @@ my $builder = Module::Build->new(
     build_requires => {
         'Test::More' => 0,
     },
+    script_files => [qw(scripts/fv2xml scripts/xml2fv scripts/hash2fv)],
+    create_makefile_pl => 'traditional',
     #add_to_cleanup      => [ 'Tie-FieldVals-*' ],
-    script_files => [qw(scripts/fv2xml scripts/xml2fv)],
-
 );
 
 $builder->create_build_script();
-# create the Makefile.PL if need be
-if (! -f 'Makefile.PL')
-{
-    use Module::Build::Compat;
-    print "creating Makefile.PL\n";
-    Module::Build::Compat->create_makefile_pl('passthrough', $builder);
-}

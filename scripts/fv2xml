@@ -10,11 +10,11 @@ fv2xml - convert a Tie::FieldVals datafile into XML data.
 
 =head1 VERSION
 
-This describes version B<0.40> of fv2xml.
+This describes version B<0.6202> of fv2xml.
 
 =cut
 
-our $VERSION = '0.40';
+our $VERSION = '0.6202';
 
 =head1 SYNOPSIS
 
@@ -251,19 +251,11 @@ sub convert_file ($) {
     {
 	print STDERR Data::Dumper->Dump([$data_ref], [qw(fv2xml)]);
     }
-    # open the data file
-    my @all_recs = ();
-    my $df = tie @all_recs, 'Tie::FieldVals',
-	datafile=>$data_ref->{options}->{'datafile'},
-	cache_size=>100, memory=>0;
-    $data_ref->{_all_recs} = \@all_recs;
-    $data_ref->{_recs_obj} = $df;
-
     # get the records, sort them, and grab them
     my @sel_recs = ();
     Tie::FieldVals::Select::debug($data_ref->{options}->{'debug'});
     my $sel_obj = tie @sel_recs, 'Tie::FieldVals::Select',
-	all_data=>\@all_recs,
+	datafile=>$data_ref->{options}->{'datafile'},
 	selection=>$data_ref->{options}->{'match'},
 	match_any=>$data_ref->{options}->{'match_any'};
     $data_ref->{_sel_recs} = \@sel_recs;

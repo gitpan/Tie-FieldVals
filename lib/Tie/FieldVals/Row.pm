@@ -8,11 +8,11 @@ Tie::FieldVals::Row - a hash tie for rows (records) of Tie::FieldVals data
 
 =head1 VERSION
 
-This describes version B<0.40> of Tie::FieldVals::Row.
+This describes version B<0.6202> of Tie::FieldVals::Row.
 
 =cut
 
-our $VERSION = '0.40';
+our $VERSION = '0.6202';
 
 =head1 SYNOPSIS
 
@@ -56,35 +56,42 @@ my $DEBUG = 0;
 
 =head1 OBJECT METHODS
 
-=head2 set_from_string
+=head2 set_from_hash
 
-Set the hash data from an enhanced Field:Value data string.
+Set the hash data from a simple untied hash.
 
-$row_obj->set_from_string($record_str);
+$row_obj->set_from_hash(\%hash);
 
-$row_obj->set_from_string($record_str,
-    override_keys=>1);
+$row_obj->set_from_hash(\%hash
+    override_keys=>1,
+    append_keys=>0);
 
-The format of the string is basically a multi-line string
-in Field:Value format, with the addition that if a line does
-not start with a known fieldname followed by a colon, that
-the contents of that line is added to the value of the previous
-field.
+Arguments:
 
-If a particular FieldName is repeated, its value is added to
-the existing value of that FieldName, and it becomes a
-multi-value field.
+=over
+
+=item append_keys
+
+Append to the list of official fields with the Field: contents
+of this string.
+(default: false)
+
+=item override_keys
 
 If override_keys is true, then the official fields, the legal
 keys to this hash, are reset from the Field: contents of this
 string.
+(default: false)
+
+=back
 
 =cut
-sub set_from_string ($$;%) {
+sub set_from_hash ($$;%) {
     my $self = shift;
-    my $record_str = shift;
+    my $hash_ref = shift;
     my %args = (
 	override_keys=>0,
+	append_keys=>0,
 	@_
 	);
 
@@ -97,7 +104,103 @@ sub set_from_string ($$;%) {
     }
     else
     {
-	# otherwise call the Tied CLEAR
+	# otherwise, just clear the existing data
+	$self->CLEAR();
+    }
+
+    my @fields = ();
+    my $cur_field = '';
+    foreach my $field (sort keys %{$hash_ref})
+    {
+	my $val = $hash_ref->{$field};
+	if ($args{override_keys}
+	    || $args{append_keys}
+	    || exists $self->{FIELDS}->{$field})
+	{
+	    $cur_field = $field;
+	    if (!defined $self->{FIELDS}->{$field})
+	    {
+		$self->{FIELDS}->{$field} = [];
+	    }
+	    if (ref $val)
+	    {
+		push @{$self->{FIELDS}->{$field}}, @{$val};
+	    }
+	    else
+	    {
+		push @{$self->{FIELDS}->{$field}}, $val;
+	    }
+	    if ($args{override_keys})
+	    {
+		push @{$self->{OPTIONS}->{fields}}, $field;
+	    }
+	}
+	else
+	{
+	    carp "unknown field $field in hash";
+	}
+    }
+} # set_from_hash
+
+=head2 set_from_string
+
+Set the hash data from an enhanced Field:Value data string.
+
+$row_obj->set_from_string($record_str);
+
+$row_obj->set_from_string($record_str,
+    override_keys=>1,
+    append_keys=>0);
+
+The format of the string is basically a multi-line string
+in Field:Value format, with the addition that if a line does
+not start with a known fieldname followed by a colon, that
+the contents of that line is added to the value of the previous
+field.
+
+If a particular FieldName is repeated, its value is added to
+the existing value of that FieldName, and it becomes a
+multi-value field.
+
+Arguments:
+
+=over
+
+=item append_keys
+
+Append to the list of official fields with the Field: contents
+of this string.
+(default: false)
+
+=item override_keys
+
+If override_keys is true, then the official fields, the legal
+keys to this hash, are reset from the Field: contents of this
+string.
+(default: false)
+
+=back
+
+=cut
+sub set_from_string ($$;%) {
+    my $self = shift;
+    my $record_str = shift;
+    my %args = (
+	override_keys=>0,
+	append_keys=>0,
+	@_
+	);
+
+    # if we are overriding the keys, simply clear
+    # the whole self-hash
+    if ($args{override_keys})
+    {
+	%{$self->{FIELDS}} = ();
+	$self->{OPTIONS}->{fields} = [];
+    }
+    else
+    {
+	# otherwise, just clear the existing data
 	$self->CLEAR();
     }
 
@@ -114,6 +217,7 @@ sub set_from_string ($$;%) {
 	    my $field = $1;
 	    my $val = $2;
 	    if ($args{override_keys}
+		|| $args{append_keys}
 		|| exists $self->{FIELDS}->{$field})
 	    {
 		$cur_field = $field;
@@ -151,7 +255,8 @@ Set the hash data from an XML string.
 $row_obj->set_from_xml_string($record_str);
 
 $row_obj->set_from_xml_string($record_str,
-    override_keys=>1);
+    override_keys=>1,
+    clear=>1);
 
 The format of this XML string is as follows:
 
@@ -165,9 +270,24 @@ If a particular FieldName is repeated, its value is added to
 the existing value of that FieldName, and it becomes a
 multi-value field.
 
+Arguments:
+
+=over
+
+=item append_keys
+
+Append to the list of official fields with the <Field> contents
+of this string.
+(default: false)
+
+=item override_keys
+
 If override_keys is true, then the official fields, the legal
 keys to this hash, are reset from the <Field> contents of this
 string.
+(default: false)
+
+=back
 
 =cut
 sub set_from_xml_string ($$;%) {
@@ -175,6 +295,7 @@ sub set_from_xml_string ($$;%) {
     my $record_str = shift;
     my %args = (
 	override_keys=>0,
+	append_keys=>0,
 	@_
 	);
 
@@ -187,7 +308,7 @@ sub set_from_xml_string ($$;%) {
     }
     else
     {
-	# otherwise call the Tied CLEAR
+	# otherwise, just clear the existing data
 	$self->CLEAR();
     }
 
@@ -209,6 +330,7 @@ sub set_from_xml_string ($$;%) {
 	    my $field = $1;
 	    # is this a legal key?
 	    if ($args{override_keys}
+		|| $args{append_keys}
 		|| exists $self->{FIELDS}->{$field})
 	    {
 		my $val = shift @all_fields;
@@ -237,23 +359,37 @@ sub set_from_xml_string ($$;%) {
 Returns the hash data as a string in the same format as
 expected by L</set_from_string>.
 
-my $str = $row_obj->get_as_string();
+    my $str = $row_obj->get_as_string();
+
+    my $str = $row_obj->get_as_string(fields=>\@fields);
+
+If B<fields> is defined, then return a string which is made up
+of only that subset of the fields given by the @fields array.
 
 =cut
-sub get_as_string ($) {
+sub get_as_string ($;%) {
     my $self = shift;
+    my %args = (
+	fields=>undef,
+	@_
+	);
 
     my $out = '';
-    foreach my $field (@{$self->{OPTIONS}->{fields}})
+    my $fields_ref = (defined $args{fields}
+	? $args{fields} : $self->{OPTIONS}->{fields});
+    foreach my $field (@{$fields_ref})
     {
-	my $num_vals = $self->field_count($field);
-	my $aref = $self->FETCH(\$field);
-	for (my $i=0; $i < $num_vals; $i++)
+	if ($self->EXISTS($field))
 	{
-	    my $val = $aref->[$i];
-	    $out .= "${field}:";
-	    $out .= $val;
-	    $out .= "\n";
+	    my $num_vals = $self->field_count($field);
+	    my $aref = $self->FETCH(\$field);
+	    for (my $i=0; $i < $num_vals; $i++)
+	    {
+		my $val = $aref->[$i];
+		$out .= "${field}:";
+		$out .= $val;
+		$out .= "\n";
+	    }
 	}
     }
     $out =~ s/\n$//;
@@ -266,28 +402,42 @@ sub get_as_string ($) {
 Returns the hash data as an XML string in the same
 format as expected by L</set_from_xml_string>.
 
-my $str = $row_obj->get_xml_string();
+    my $str = $row_obj->get_xml_string();
+
+    my $str = $row_obj->get_xml_string(fields=>\@fields);
+
+If B<fields> is defined, then return a string which is made up
+of only that subset of the fields given by the @fields array.
 
 =cut
-sub get_xml_string ($) {
+sub get_xml_string ($;%) {
     my $self = shift;
+    my %args = (
+	fields=>undef,
+	@_
+	);
 
     my $out = '';
     $out .= "<record>\n";
-    foreach my $field (@{$self->{OPTIONS}->{fields}})
+    my $fields_ref = (defined $args{fields}
+	? $args{fields} : $self->{OPTIONS}->{fields});
+    foreach my $field (@{$fields_ref})
     {
-	my $num_vals = $self->field_count($field);
-	my $aref = $self->FETCH(\$field);
-	for (my $i=0; $i < $num_vals; $i++)
+	if ($self->EXISTS($field))
 	{
-	    my $val = $$aref[$i];
-	    $val =~ s/&/&amp;/g;
-	    $val =~ s/</&lt;/g;
-	    $val =~ s/>/&gt;/g;
-	    $out .= "<${field}>";
-	    $out .= $val;
-	    $out .= "</${field}>";
-	    $out .= "\n";
+	    my $num_vals = $self->field_count($field);
+	    my $aref = $self->FETCH(\$field);
+	    for (my $i=0; $i < $num_vals; $i++)
+	    {
+		my $val = $$aref[$i];
+		$val =~ s/&/&amp;/g;
+		$val =~ s/</&lt;/g;
+		$val =~ s/>/&gt;/g;
+		$out .= "<${field}>";
+		$out .= $val;
+		$out .= "</${field}>";
+		$out .= "\n";
+	    }
 	}
     }
     $out .= "</record>\n";

@@ -5,16 +5,10 @@ use Tie::FieldVals;
 use Tie::FieldVals::Row;
 use Tie::FieldVals::Select;
 
-# open the data file
-my @all_recs = ();
-my $df = tie @all_recs, 'Tie::FieldVals',
-   datafile=>'t/test_sort2.data',
-   cache_size=>100, memory=>0;
-
 # make a selection
 my @sel_recs = ();
 my $sel_obj = tie @sel_recs, 'Tie::FieldVals::Select',
-   all_data=>\@all_recs,
+   datafile=>'t/test_sort2.data',
    selection=>{'Author'=>'Alfred Bester'};
 
 ok($sel_obj, "Tie::FieldVals:Select object made");

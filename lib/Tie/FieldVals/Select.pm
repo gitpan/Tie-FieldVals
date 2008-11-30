@@ -8,11 +8,11 @@ Tie::FieldVals::Select - an array tie for a subset of Tie::FieldVals data
 
 =head1 VERSION
 
-This describes version B<0.40> of Tie::FieldVals::Select.
+This describes version B<0.6202> of Tie::FieldVals::Select.
 
 =cut
 
-our $VERSION = '0.40';
+our $VERSION = '0.6202';
 
 =head1 SYNOPSIS
 
@@ -20,12 +20,9 @@ our $VERSION = '0.40';
     use Tie::FieldVals::Row;
     use Tie::FieldVals::Select;
 
-    my @records;
-    tie @records, 'Tie::FieldVals', datafile=>$datafile;
-
     my @sel_recs;
     my $sel_obj = tie @sel_recs, 'Tie::FieldVals::Select',
-	all_data=>\@records, selection=>{$key=>$value...};
+	datafile=>$datafile, selection=>{$key=>$value...};
 
     # sort the records
     $sel_obj->sort_records(sort_by=>@sort_order);
@@ -33,10 +30,11 @@ our $VERSION = '0.40';
 =head1 DESCRIPTION
 
 This is a Tie object to map a SUBSET of the records in a Tie::FieldVals
-data file into an array.  This is useful as a separate object
-because one can do things to it without affecting the underlying
-file, unlike with a Tie::FieldVals object.  One can re-select
-the data, sort the data, or take a temporary "slice" of the data.
+data file into an array.  It is a sub-class of Tie::FieldVals.  This is
+useful as a separate object because one can do things to it without
+affecting the underlying file, unlike with a Tie::FieldVals object.  One
+can re-select the data, sort the data, or take a temporary "slice" of the
+data.
 
 This depends on the Tie::FieldVals and Tie::FieldVals::Row modules.
 
@@ -45,13 +43,12 @@ This depends on the Tie::FieldVals and Tie::FieldVals::Row modules.
 use 5.006;
 use strict;
 use Carp;
-use Tie::Array;
 use Tie::FieldVals;
 use Tie::FieldVals::Row;
 use Fcntl qw(:DEFAULT);
 use Data::Dumper;
 
-our @ISA = qw(Tie::Array);
+our @ISA = qw(Tie::FieldVals);
 
 # to make taint happy
 $ENV{PATH} = "/bin:/usr/bin:/usr/local/bin";
@@ -89,7 +86,7 @@ sub make_selection {
 
     # now, apply the selection to the records
     my @records = ();
-    my $count = @{$self->{all_data}};
+    my $count = $self->SUPER::FETCHSIZE();
     for (my $i=0; $i < $count; $i++)
     {
 	my $add_this_row = 0;
@@ -101,7 +98,7 @@ sub make_selection {
 	}
 	elsif (!ref $select) # match any
 	{
-	    my $row_ref = ${$self->{all_data}}[$i];
+	    my $row_ref = $self->SUPER::FETCH($i);
 	    my $row_obj = tied %{$row_ref};
 	    if ($row_obj->match_any($select))
 	    {
@@ -110,14 +107,14 @@ sub make_selection {
 	}
 	elsif (defined $match_any && $match_any)
 	{
-	    my $row_ref = ${$self->{all_data}}[$i];
+	    my $row_ref = $self->SUPER::FETCH($i);
 	    my $row_obj = tied %{$row_ref};
 	    if ($row_obj->match_any($match_any))
 	    {
 		$add_this_row = 1;
 	    }
 	}
-	elsif (ref $select eq 'ARRAY')
+	elsif (ref $select eq 'ARRAY') # select a range
 	{
 	    my $first = ${$select}[0];
 	    my $last = ${$select}[1];
@@ -128,7 +125,7 @@ sub make_selection {
 	}
 	elsif (ref $select eq 'HASH')
 	{
-	    my $row_ref = ${$self->{all_data}}[$i];
+	    my $row_ref = $self->SUPER::FETCH($i);
 	    my $row_obj = tied %{$row_ref};
 	    if ($row_obj->match(%{$select}))
 	    {
@@ -141,10 +138,10 @@ sub make_selection {
 	    push @records, $i;
 	}
     }
-    $self->{sel_recs} = \@records;
+    $self->{SEL_RECS} = \@records;
     # set the full slice
     $self->{OPTIONS}->{start_rec} = 0;
-    $self->{OPTIONS}->{num_recs} = scalar @{$self->{sel_recs}};
+    $self->{OPTIONS}->{num_recs} = scalar @{$self->{SEL_RECS}};
 
 } # make_selection
 
@@ -182,7 +179,7 @@ sub set_sel_slice {
 
     # now, apply the sub-selection to the current selection
     my @records = ();
-    my $count = @{$self->{sel_recs}};
+    my $count = @{$self->{SEL_RECS}};
     my $start_range = 0;
     my $start_offset;
     if ($args{start_at_zero})
@@ -201,7 +198,7 @@ sub set_sel_slice {
 	}
 	$start_offset = $self->{OPTIONS}->{start_rec};
 	# set the count to be from the offset start
-	# to the end of the sel_recs array
+	# to the end of the SEL_RECS array
 	$count = ($count - $self->{OPTIONS}->{start_rec});
     }
     # reset the curent slice to be as big as possible
@@ -322,7 +319,7 @@ sub clear_sel_slice {
     );
 
     $self->{OPTIONS}->{start_rec} = 0;
-    $self->{OPTIONS}->{num_recs} = scalar @{$self->{sel_recs}};
+    $self->{OPTIONS}->{num_recs} = scalar @{$self->{SEL_RECS}};
 } # clear_sel_slice
 
 =head2 sort_records
@@ -346,6 +343,8 @@ done on the given fields.
 =item sort_numeric
 
 The given field(s) should be sorted as numbers.
+Note that for multi-valued fields, this compares only the first value
+in the set.
 
 =item sort_title
 
@@ -370,122 +369,113 @@ sub sort_records ($%) {
 	sort_by => undef,
 	sort_numeric => undef,
 	sort_reversed => undef,
+	sort_title => undef,
+	sort_lastword => undef,
 	@_
     );
-    my $records_ref = $self->{sel_recs};
+    my $records_ref = $self->{SEL_RECS};
 
     my @sort_fields = @{$args{sort_by}};
     my @sort_order = ();
-    my %sort_numerically = (defined $args{sort_numeric} ? %{$args{sort_numeric}} : ());
-    my %sort_reversed = (defined $args{sort_reversed} ? %{$args{sort_reversed}} : ());
+    my %sort_numerically = (defined $args{sort_numeric}
+	? %{$args{sort_numeric}} : ());
+    my %sort_reversed = (defined $args{sort_reversed}
+	? %{$args{sort_reversed}} : ());
     my %sort_title = (defined $args{sort_title} ? %{$args{sort_title}} : ());
-    my %sort_lastword = (defined $args{sort_lastword} ? %{$args{sort_lastword}} : ());
+    my %sort_lastword = (defined $args{sort_lastword}
+	? %{$args{sort_lastword}} : ());
     # filter out any illegal fields
-    my $fields_str = join(':', $self->{recs_obj}->field_names());
-    $fields_str = ":${fields_str}:";
     foreach my $sfname (@sort_fields)
     {
-	my $test_str = ":${sfname}:";
-	if ($fields_str =~ /$test_str/)
+	if (exists $self->{field_names_hash}->{$sfname}
+	    && defined $self->{field_names_hash}->{$sfname}
+	    && $self->{field_names_hash}->{$sfname})
 	{
 	    push @sort_order, $sfname;
 	}
     }
 
-    my @sorted_records = sort {
-	my $result = 0;
-	my $a_row = ${$self->{all_data}}[$a];
-	my $b_row = ${$self->{all_data}}[$b];
+    # pre-cache the actual comparison values
+    my %values = ();
+    foreach my $rec (@{$records_ref})
+    {
+	my $a_row = $self->SUPER::FETCH($rec);
+	$values{$rec} = {};
 	foreach my $fn (@sort_order)
 	{
 	    # allow for multi-valued fields
 	    my @a_arr = @{$a_row->{\$fn}};
-	    my @b_arr = @{$b_row->{\$fn}};
-	    # allow for titles
-	    if ($sort_title{$fn})
+	    if (!@a_arr)
 	    {
-		@a_arr = map { s/^(The\s+|A\s+)//; $_ } @a_arr;
-		@b_arr = map { s/^(The\s+|A\s+)//; $_ } @b_arr;
-	    }
-	    # do lastword stuff
-	    if ($sort_lastword{$fn})
-	    {
-		@a_arr = map { s/^(.*)\s+(\w+)$/$2,$1/; $_ } @a_arr;
-		@b_arr = map { s/^(.*)\s+(\w+)$/$2,$1/; $_ } @b_arr;
-	    }
-	    my $a_val = join('###', @a_arr);
-	    my $b_val = join('###', @b_arr);
-	    if (!defined $a_val && !defined $b_val)
-	    {
-		$result = 0;
-	    }
-	    elsif (!$a_val && !$b_val)
-	    {
-		$result = 0;
-	    }
-	    elsif (defined $sort_reversed{$fn}
-		&& $sort_reversed{$fn})
-	    {
-		if (!defined $a_val)
-		{
-		    $result = 1;
-		}
-		elsif (!defined $b_val)
-		{
-		    $result = -1;
-		}
-		elsif (defined $sort_numerically{$fn}
+		if (defined $sort_numerically{$fn}
 		    && $sort_numerically{$fn})
 		{
-		    if (!$a_val)
-		    {
-			$result = ($b_val <=> 0);
-		    }
-		    elsif (!$b_val)
-		    {
-			$result = (0 <=> $a_val);
-		    }
-		    else
-		    {
-			$result = ($b_val <=> $a_val);
-		    }
+		    # sort undefined as zero
+		    $values{$rec}->{$fn} = 0;
 		}
 		else
 		{
-		    $result = ($b_val cmp $a_val);
+		    # sort undefined as the empty string
+		    $values{$rec}->{$fn} = '';
 		}
 	    }
 	    else
 	    {
-		if (!defined $a_val)
-		{
-		    $result = -1;
-		}
-		elsif (!defined $b_val)
-		{
-		    $result = 1;
-		}
-		elsif (defined $sort_numerically{$fn}
+		my $a_val = '';
+		if (defined $sort_numerically{$fn}
 		    && $sort_numerically{$fn})
 		{
-		    if (!$a_val)
+		    # multi-valued fields don't make sense for
+		    # numeric comparisons, so just take the first one
+		    $a_val = $a_arr[0];
+		    $a_val =~ s/\s//g; # remove any spaces
+		    # non-numeric data should be compared as zero
+		    if (!defined $a_val
+			|| !$a_val
+			|| $a_val =~ /\D/)
 		    {
-			$result = (0 <=> $b_val);
-		    }
-		    elsif (!$b_val)
-		    {
-			$result = ($a_val <=> 0);
-		    }
-		    else
-		    {
-			$result = ($a_val <=> $b_val);
+			$a_val = 0;
 		    }
 		}
-		else
+		else # strings
 		{
-		    $result = ($a_val cmp $b_val);
+		    # allow for titles
+		    if ($sort_title{$fn})
+		    {
+			@a_arr = map { s/^(The\s+|A\s+)//; $_ } @a_arr;
+		    }
+		    # do lastword stuff
+		    if ($sort_lastword{$fn})
+		    {
+			@a_arr = map { s/^(.*)\s+(\w+)$/$2,$1/; $_ } @a_arr;
+		    }
+		    $a_val = join('###', @a_arr);
 		}
+		$values{$rec}->{$fn} = $a_val;
 	    }
+	}
+    }
+
+    my @sorted_records = sort {
+	my $result = 0;
+	foreach my $fn (@sort_order)
+	{
+	    my $a_val = $values{$a}->{$fn};
+	    my $b_val = $values{$b}->{$fn};
+	    $result =
+	    (
+	     (defined $sort_reversed{$fn} && $sort_reversed{$fn})
+	     ? (
+		(defined $sort_numerically{$fn} && $sort_numerically{$fn})
+		?  ($b_val <=> $a_val)
+		: ($b_val cmp $a_val)
+	       )
+		: (
+		   (defined $sort_numerically{$fn} && $sort_numerically{$fn})
+		   ?  ($a_val <=> $b_val)
+		   : ($a_val cmp $b_val)
+		  )
+	    );
 	    if ($result != 0)
 	    {
 		return $result;
@@ -494,7 +484,7 @@ sub sort_records ($%) {
 	$result;
     } @{$records_ref};
 
-    @{$self->{sel_recs}} = @sorted_records;
+    @{$self->{SEL_RECS}} = @sorted_records;
 
 } # sort_records
 
@@ -523,7 +513,7 @@ sub get_column ($%) {
 
     my @col = ();
     my %col_vals = ();
-    for (my $i=0; $i < @{$self->{sel_recs}}; $i++)
+    for (my $i=0; $i < @{$self->{SEL_RECS}}; $i++)
     {
 	my $vals_ref = $self->FETCH($i);
 	my $val = $vals_ref->{$args{field_name}};
@@ -552,41 +542,35 @@ sub get_column ($%) {
 
 Create a new instance of the object as tied to an array.
 
-    tie @sel_recs, 'Tie::FieldVals::Select',
-	all_data=>\@records, selection=>{$key=>$value},
+    tie @SEL_RECS, 'Tie::FieldVals::Select',
+	datafile=>$datafile, selection=>{$key=>$value},
 	match_any=>$val_any;
 
-The all_data option is a reference to a Tie::FieldVals array,
-and selection and match_any options are the selection criteria
+The selection and match_any options are the selection criteria
 used to define this sub-set; they have the same format as
 those used in L<Tie::FieldVals::Row/match> and
 L<Tie::FieldVals::Row/match_any> methods.
 
+Other options are the same as for L<Tie::FieldVals/TIEARRAY>.
+
 =cut
 sub TIEARRAY {
     my $class = shift;
-    my %args = (
-	all_data=>undef,
-	selection=>undef,
-	match_any=>undef,
-	@_
-    );
 
-    my $self = {};
-    if (!defined $args{all_data})
-    {
-	die "Tie::FieldVals::Select Data not defined!";
-    }
-    my $recs_obj = tied @{$args{all_data}};
-
-    $self->{all_data} = $args{all_data};
-    $self->{recs_obj} = $recs_obj;
-    $self->{OPTIONS} = \%args;
+    # make the parent tie
+    my $self = Tie::FieldVals::TIEARRAY($class, @_);
+    # now, FILE_OBJ, FILE_RECS, OPTIONS, REC_CACHE, field_names
+    # field_names_hash
+    # should be set
+    
+    # set the default additional options
+    $self->{OPTIONS}->{selection} ||= undef;
+    $self->{OPTIONS}->{match_any} ||= undef;
 
     # now, apply the selection to the records
-    make_selection($self, %args);
+    $self->make_selection(%{$self->{OPTIONS}});
 
-    bless $self, $class;
+    return $self;
 } # TIEARRAY
 
 =head2 FETCH
@@ -605,16 +589,16 @@ sub FETCH {
     if ($ind >= 0 && $ind < $self->{OPTIONS}->{num_recs})
     {
 	my $s_ind = $ind + $self->{OPTIONS}->{start_rec};
-	my $real_ind = ${$self->{sel_recs}}[$s_ind];
+	my $real_ind = ${$self->{SEL_RECS}}[$s_ind];
 	if ($DEBUG)
 	{
 	    print STDERR "ind=$ind";
 	    print STDERR " s_ind=$s_ind";
 	    print STDERR " real_ind=$real_ind";
 	    print STDERR "\n";
-	    print STDERR Dumper(${$self->{all_data}}[$real_ind]);
+	    print STDERR Dumper(${$self->{FILE_RECS}}[$real_ind]);
 	}
-	return ${$self->{all_data}}[$real_ind];
+	return $self->SUPER::FETCH($real_ind);
     }
     return undef;
 } # FETCH
@@ -638,8 +622,8 @@ sub STORE {
     if ($ind >= 0 && $ind < $self->{OPTIONS}->{num_recs})
     {
 	my $s_ind = $ind + $self->{OPTIONS}->{start_rec};
-	my $real_ind = ${$self->{sel_recs}}[$s_ind];
-	${$self->{all_data}}[$real_ind] = $val;
+	my $real_ind = ${$self->{SEL_RECS}}[$s_ind];
+	$self->SUPER::STORE($real_ind, $val);
     }
 } # STORE
 
@@ -670,7 +654,7 @@ sub STORESIZE {
     my $self = shift;
     my $count = shift;
 
-    if ($count <= @{$self->{sel_recs}})
+    if ($count <= @{$self->{SEL_RECS}})
     {
 	$self->{OPTIONS}->{num_recs} = $count;
     }
@@ -692,8 +676,8 @@ sub EXISTS {
     if ($ind >= 0 && $ind < $self->{OPTIONS}->{num_recs})
     {
 	my $s_ind = $ind + $self->{OPTIONS}->{start_rec};
-	my $real_ind = ${$self->{sel_recs}}[$s_ind];
-	return exists ${$self->{all_data}}[$real_ind];
+	my $real_ind = ${$self->{SEL_RECS}}[$s_ind];
+	return $self->SUPER::EXISTS($real_ind);
     }
     return 0;
 } # EXISTS
@@ -714,7 +698,7 @@ sub DELETE {
     if ($ind >= 0 && $ind < $self->{OPTIONS}->{num_recs})
     {
 	my $s_ind = $ind + $self->{OPTIONS}->{start_rec};
-	delete ${$self->{sel_recs}}[$s_ind];
+	delete ${$self->{SEL_RECS}}[$s_ind];
 	$self->{OPTIONS}->{num_recs}--;
     }
 } # DELETE
@@ -732,7 +716,7 @@ sub CLEAR {
     my $self = shift;
     my $ind = shift;
 
-    @{$self->{sel_recs}} = ();
+    @{$self->{SEL_RECS}} = ();
     $self->{OPTIONS}->{start_rec} = 0;
     $self->{OPTIONS}->{num_recs} = 0;
 } # CLEAR
@@ -747,12 +731,13 @@ Untie the array.
 sub UNTIE {
     carp &whowasi if $DEBUG;
     my $self = shift;
-    my $ind = shift;
+    my $count = shift;
 
-    $self->{sel_recs} = [];
+    carp "untie attempted while $count inner references still exist" if $count;
+    $self->{SEL_RECS} = [];
     $self->{OPTIONS}->{start_rec} = 0;
     $self->{OPTIONS}->{num_recs} = 0;
-    $self->{all_data} = undef;
+    $self->SUPER::UNTIE($count);
 } # UNTIE
 
 =head1 PRIVATE METHODS
@@ -778,7 +763,6 @@ sub whowasi { (caller(1))[3] . '()' }
     Test::More
     Carp
     Data::Dumper
-    Tie::Array
     Fcntl
     Tie::FieldVals
     Tie::FieldVals::Row

@@ -8,18 +8,18 @@ Tie::FieldVals::Join - an array tie for two files of FieldVals data
 
 =head1 VERSION
 
-This describes version B<0.40> of Tie::FieldVals::Join.
+This describes version B<0.6202> of Tie::FieldVals::Join.
 
 =cut
 
-our $VERSION = '0.40';
+our $VERSION = '0.6202';
 
 =head1 SYNOPSIS
 
     use Tie::FieldVals;
     use Tie::FieldVals::Row;
     use Tie::FieldVals::Join;
-    use Tie::FieldVals::Join::Row;
+    use Tie::FieldVals::Row::Join;
 
     my @records;
 
@@ -32,7 +32,7 @@ our $VERSION = '0.40';
 This is a Tie object to map the records in two FieldVals data files
 into an array.
 
-This depends on the Tie::FieldVals::Join::Row module.
+This depends on the Tie::FieldVals::Row::Join module.
 
 =cut
 
@@ -42,7 +42,7 @@ use Carp;
 use Tie::Array;
 use Tie::FieldVals;
 use Tie::FieldVals::Row;
-use Tie::FieldVals::Join::Row;
+use Tie::FieldVals::Row::Join;
 use Fcntl qw(:DEFAULT);
 use Data::Dumper;
 
@@ -130,32 +130,15 @@ sub TIEARRAY {
     );
 
     my $self = {};
-
-    $self->{GRA_RECS} = [];
-    $self->{GRA_OBJS} = [];
-    my @records1;
-    $self->{GRA_OBJS}->[0] = tie @records1, 'Tie::FieldVals',
-	datafile=>$args{datafile},
-	mode=>O_RDONLY, memory=>$args{memory},
-	cache_size=>$args{cache_size},
-	cache_all=>$args{cache_all}
-	or die "Tie::FieldVals::Join - Could not open", $args{datafile}, ".";
-    $self->{GRA_RECS}->[0] = \@records1;
-
-    my @records2;
-    $self->{GRA_OBJS}->[1] = tie @records2, 'Tie::FieldVals',
-	datafile=>$args{joinfile},
-	mode=>O_RDONLY, memory=>$args{memory},
-	cache_size=>$args{cache_size},
-	cache_all=>$args{cache_all}
-	or die "Tie::FieldVals::Join - Could not open", $args{joinfile}, ".";
-    $self->{GRA_RECS}->[1] = \@records2;
-
     $self->{OPTIONS} = \%args;
 
+    # find the field names
     $self->{FIELD_NAMES} = [];
-    @{$self->{FIELD_NAMES}->[0]} = $self->{GRA_OBJS}->[0]->field_names();
-    @{$self->{FIELD_NAMES}->[1]} = $self->{GRA_OBJS}->[1]->field_names();
+    @{$self->{FIELD_NAMES}->[0]} =
+	Tie::FieldVals::find_field_names($args{datafile});
+    @{$self->{FIELD_NAMES}->[1]} =
+	Tie::FieldVals::find_field_names($args{joinfile});
+
     # set the combined field names
     my @field_names = @{$self->{FIELD_NAMES}->[0]};
     my %field_names_hash1 = ();
@@ -200,14 +183,14 @@ sub TIEARRAY {
     $self->{SEL_OBJS} = [];
     my @sel_recs1;
     $self->{SEL_OBJS}->[0] = tie @sel_recs1, 'Tie::FieldVals::Select',
-	all_data=>$self->{GRA_RECS}->[0],
+	datafile=>$args{datafile},
 	selection=>(%sel1 ? \%sel1 : undef),
 	match_any=>$args{match_any}
 	or die "Tie::FieldVals::Join - Could not select", $args{datafile}, ".";
     $self->{SEL_RECS}->[0] = \@sel_recs1;
     my @sel_recs2;
     $self->{SEL_OBJS}->[1] = tie @sel_recs2, 'Tie::FieldVals::Select',
-	all_data=>$self->{GRA_RECS}->[1],
+	datafile=>$args{joinfile},
 	selection=>(%sel2 ? \%sel2 : undef),
 	match_any=>$args{match_any}
 	or die "Tie::FieldVals::Join - Could not select", $args{joinfile}, ".";
@@ -258,9 +241,9 @@ sub TIEARRAY {
     }
     $self->{JOIN_RECS} = \@join_recs;
     $self->{REC_CACHE} = {};
-    my $count = @join_recs;
     if ($args{cache_all}) # set the cache to the size of the file
     {
+	my $count = @join_recs;
 	$self->{OPTIONS}->{cache_size} = $count;
     }
 
@@ -273,7 +256,7 @@ Get a row from the array.
 
     $val = $array[$ind];
 
-Returns a reference to a Tie::FieldVals::Join::Row hash, or undef.
+Returns a reference to a Tie::FieldVals::Row::Join hash, or undef.
 
 =cut
 sub FETCH {
@@ -296,16 +279,23 @@ sub FETCH {
 	my $file_ind_ar_ref = $self->{JOIN_RECS}->[$ind];
 	my @rec_strs = ();
 	my @rows = ();
-	for (my $fnum=0; $fnum < @{$file_ind_ar_ref}; $fnum++)
-	{
-	    my $find = ${$file_ind_ar_ref}[$fnum];
-	    my $row_ref = $self->{SEL_RECS}->[$fnum]->[$find];
-	    push @rows, $row_ref;
-	}
-	# now set the JoinRow
+
+	my $find = ${$file_ind_ar_ref}[0];
+	my $srow_ref = $self->{SEL_RECS}->[0]->[$find];
+	my $srow_obj = tied %{$srow_ref};
+
 	%{$self->{REC_CACHE}->{$ind}} = ();
 	my $row_obj = tie %{$self->{REC_CACHE}->{$ind}},
-	    'Tie::FieldVals::Join::Row', rows=>\@rows;
+	    'Tie::FieldVals::Row::Join', 
+	    row=>$srow_obj;
+
+	for (my $fnum=1; $fnum < @{$file_ind_ar_ref}; $fnum++)
+	{
+	    $find = ${$file_ind_ar_ref}[$fnum];
+	    $srow_ref = $self->{SEL_RECS}->[$fnum]->[$find];
+	    $srow_obj = tied %{$srow_ref};
+	    $row_obj->merge_rows($srow_obj);
+	}
 	return $self->{REC_CACHE}->{$ind};
     }
     return undef;
@@ -407,8 +397,8 @@ sub UNTIE {
     $self->{JOIN_RECS} = [];
     for (my $i = 0; $i < @{$self->{SEL_RECS}}; $i++)
     {
+	undef $self->{SEL_OBJS}->[$i];
 	untie @{$self->{SEL_RECS}->[$i]};
-	untie @{$self->{GRA_RECS}->[$i]};
     }
 } # UNTIE
 
@@ -439,7 +429,7 @@ sub whowasi { (caller(1))[3] . '()' }
     Fcntl
     Tie::FieldVals
     Tie::FieldVals::Row
-    Tie::FieldVals::Join::Row
+    Tie::FieldVals::Row::Join
     Tie::FieldVals::Select
 
 =head1 SEE ALSO
@@ -448,7 +438,7 @@ perl(1).
 L<Tie::FieldVals>
 L<Tie::FieldVals::Row>
 L<Tie::FieldVals::Select>
-L<Tie::FieldVals::Join::Row>
+L<Tie::FieldVals::Row::Join>
 
 =head1 BUGS
 

@@ -5,16 +5,10 @@ use_ok( 'Tie::FieldVals' );
 use_ok( 'Tie::FieldVals::Row' );
 use_ok( 'Tie::FieldVals::Select' );
 
-# open the data file
-my @all_recs = ();
-my $df = tie @all_recs, 'Tie::FieldVals',
-   datafile=>'t/test1.data',
-   cache_size=>100, memory=>0;
-
 # make a selection
 my @sel_recs = ();
 my $sel_obj = tie @sel_recs, 'Tie::FieldVals::Select',
-   all_data=>\@all_recs,
+   datafile=>'t/test1.data',
    selection=>{'Author'=>'Austen,Jane'};
 
 ok($sel_obj, "Tie::FieldVals:Select object made");
@@ -67,11 +61,11 @@ $vals_str = $row_obj->get_as_string();
 is($vals_str, $ok_str, "get_as_string[0] matches");
 
 # make another selection
-untie @sel_recs;
 undef $sel_obj;
+untie @sel_recs;
 @sel_recs = ();
 $sel_obj = tie @sel_recs, 'Tie::FieldVals::Select',
-   all_data=>\@all_recs,
+   datafile=>'t/test1.data',
    selection=>{'Copyright'=>'>= 1990'};
 
 ok($sel_obj, "Tie::FieldVals:Select object made");

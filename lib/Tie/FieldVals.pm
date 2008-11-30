@@ -8,11 +8,11 @@ Tie::FieldVals - an array tie for a file of enhanced Field:Value data
 
 =head1 VERSION
 
-This describes version B<0.40> of Tie::FieldVals.
+This describes version B<0.6202> of Tie::FieldVals.
 
 =cut
 
-our $VERSION = '0.40';
+our $VERSION = '0.6202';
 
 =head1 SYNOPSIS
 
@@ -155,6 +155,51 @@ $ENV{BASH_ENV} = '';
 # for debugging
 my $DEBUG = 0;
 
+=head1 PUBLIC FUNCTIONS
+
+=head2 find_field_names
+
+    my @field_names = Tie::FieldVals::find_field_names($datafile);
+
+Read the field-name information from the file, if the file
+exists and is readable.
+
+=cut
+sub find_field_names ($) {
+    carp &whowasi if $DEBUG;
+    my $datafile = shift;
+
+    my @field_names = ();
+    if (-r $datafile)
+    {
+	# make a temporary file object to look at
+	my @records;
+	my $file_obj = tie @records, 'Tie::File', "$datafile",
+	    recsep =>"\n=\n", mode=>O_RDONLY, memory=>0
+	    or croak "Tie::FieldVals::find_field_names - Could not open '",
+		$datafile, "'.";
+
+	# the field info is in the first record
+	my %row = ();
+	my $row_obj = tie %row,
+	   'Tie::FieldVals::Row', fields=>['dummy'];
+	my $rec_str = $records[0];
+	if (defined $rec_str)
+	{
+	    $row_obj->set_from_string($rec_str,
+				      override_keys=>1);
+	    @field_names = @{$row_obj->field_names()};
+	}
+	undef $file_obj;
+	untie @records;
+	undef $row_obj;
+	untie %row;
+    }
+
+    return @field_names;
+
+} # find_field_names
+
 =head1 OBJECT METHODS
 
 =head2 field_names
@@ -289,27 +334,56 @@ sub TIEARRAY {
 
     my $self = {};
 
+    # check if the file is readable while existing
+    if (-e $args{datafile} && !-r $args{datafile})
+    {
+	croak "Tie::FieldVals::TIEARRAY - Could not read '", $args{datafile}, "'.";
+    }
     my @records;
-    $self->{FILE_OBJ} = tie @records, 'Tie::File', "$args{datafile}",
-	recsep =>"\n=\n", mode=>$args{mode}, memory=>$args{memory}
-	or die "Tie::FieldVals - Could not open", $args{datafile}, ".";
-    $self->{FILE_RECS} = \@records;
+    if (-e $args{datafile})
+    {
+	@{$self->{field_names}} = find_field_names($args{datafile});
+	$self->{FILE_OBJ} = tie @records, 'Tie::File', "$args{datafile}",
+	    recsep =>"\n=\n", mode=>$args{mode}, memory=>$args{memory}
+	or croak "Tie::FieldVals - Could not open '", $args{datafile}, "'.";
+	$self->{FILE_RECS} = \@records;
+    }
+    else
+    {
+	# check that the fields have been given
+	if (!defined $args{fields}
+	    || ref $args{fields} ne 'ARRAY')
+	{
+	    croak "Tie::FieldVals - ", $args{datafile},
+		" does not exist and no field names were given";
+	}
+	# set the fields and tie the file
+	@{$self->{field_names}} = @{$args{fields}};
+
+	$self->{FILE_OBJ} = tie @records, 'Tie::File', "$args{datafile}",
+	    recsep =>"\n=\n", mode=>$args{mode}, memory=>$args{memory}
+	or croak "Tie::FieldVals - Could not open '", $args{datafile}, "'.";
+	$self->{FILE_RECS} = \@records;
+
+	set_field_names($self);
+    }
+
     $self->{OPTIONS} = \%args;
 
-    if (!get_field_names($self, $args{fields}))
+    # set a hash of the field names
+    foreach my $fn (@{$self->{field_names}})
     {
-	carp "Tie::FieldVals - failed to get field names",
-	    (-e $args{datafile} ? ''  : " $args{datafile} does not exist");
+	$self->{field_names_hash}->{$fn} = 1;
     }
 
     $self->{REC_CACHE} = {};
-    my $count = @records;
     if ($args{cache_all}) # set the cache to the size of the file
     {
+	my $count = @records;
 	$self->{OPTIONS}->{cache_size} = $count;
     }
 
-    bless $self, $class;
+    bless ($self, (ref $class || $class));
 } # TIEARRAY
 
 =head2 FETCH
@@ -491,9 +565,11 @@ Untie the array.
 sub UNTIE {
     carp &whowasi if $DEBUG;
     my $self = shift;
-    my $ind = shift;
+    my $count = shift;
 
+    carp "untie attempted while $count inner references still exist" if $count;
     $self->{REC_CACHE} = {};
+    undef $self->{FILE_OBJ};
     untie @{$self->{FILE_RECS}};
 } # UNTIE
 
@@ -515,98 +591,32 @@ For debugging: say who called this
 =cut
 sub whowasi { (caller(1))[3] . '()' }
 
-=head2 get_field_names($self, \@default_fields)
+=head2 set_field_names
 
-Read the field-name information from the file,
-and set $self to have that info
-
-If there are no records in the file (yet) then use
-the default_fields argument as the field names definition.
+Set the field names in the data-file to be the given field names.
+(Assumes the file didn't exist before).
 
 =cut
-sub get_field_names ($%) {
+sub set_field_names ($) {
     carp &whowasi if $DEBUG;
     my $self = shift;
-    my $def_fn_ref = shift;
 
     my %row = ();
-    if ($self->{FILE_OBJ}->FETCHSIZE() == 0) # no records
+    # set the row fields from the given fields
+    my $row_obj = tie %row,
+       'Tie::FieldVals::Row', fields=>$self->{field_names};
+    # give the row fields values of the empty string
+    # (right now they are undefined)
+    foreach my $fn (@{$self->{field_names}})
     {
-	# check that the field names have been given
-	if (!defined $def_fn_ref
-	    || ref $def_fn_ref ne 'ARRAY')
-	{
-	    return 0;
-	}
-	# set the row fields from the given fields
-	my $row_obj = tie %row,
-	   'Tie::FieldVals::Row', fields=>$def_fn_ref;
-	# give the row fields values of the empty string
-	# (right now they are undefined)
-	foreach my $fn (@{$def_fn_ref})
-	{
-	    $row{$fn} = '';
-	}
-	# get the empty row as a string, and set the file record[0]
-	# to that string
-	my $rec_str = $row_obj->get_as_string();
-	$self->{FILE_RECS}->[0] = $rec_str;
-	@{$self->{field_names}} = @{$row_obj->field_names()};
+	$row{$fn} = '';
     }
-    else
-    {
-	# the field info is in the first record
-	my $row_obj = tie %row,
-	   'Tie::FieldVals::Row', fields=>['dummy'];
-	my $rec_str = $self->{FILE_RECS}->[0];
-	if (defined $rec_str)
-	{
-	    $row_obj->set_from_string($rec_str,
-				      override_keys=>1);
-	    @{$self->{field_names}} = @{$row_obj->field_names()};
-	}
-    }
+    # get the empty row as a string, and set the file record[0]
+    # to that string
+    my $rec_str = $row_obj->get_as_string();
+    $self->{FILE_RECS}->[0] = $rec_str;
 
-    @{$self->{field_names}};
-
-} # get_field_names
-
-=head2 parse_fields
-
-parse the fields part of the data
-
-=cut
-sub parse_fields ($$) {
-    carp &whowasi if $DEBUG;
-    my $self = shift;
-    my $fields_str = shift;
-
-    # fields_str should contain <gra_data><fields>...</fields>
-    # or just the fields
-    if ($fields_str =~ m#<fields>(.*)</fields>#s)
-    {
-	$fields_str = $1;
-    }
-    # now fields_str should just contain the fields
-    # eg <Author/>...<Review htmlize="yes"/>
-    while ($fields_str =~ m#<([a-zA-Z][^>]*)/>#sg)
-    {
-	my $full_field = $1;
-	if ($full_field =~ m#([a-zA-Z][-_a-zA-Z0-9]*)\s([^>]*)#sg)
-	{
-	    my $field = $1;
-	    my $attr_str = $2;
-	    push @{$self->{field_names}}, $field;
-	    $self->{fields}->{$field} = 1;
-	}
-	elsif ($full_field =~ m/^([a-zA-Z][-_a-zA-Z0-9]*)$/sg)
-	{
-	    my $field = $1;
-	    push @{$self->{field_names}}, $field;
-	    $self->{fields}->{$field} = 1;
-	}
-    }
-}
+} # set_field_names
 
 =head1 REQUIRES
 
@@ -621,6 +631,7 @@ sub parse_fields ($$) {
     Getopt::Long
     Pod::Usage
     Getopt::ArgvFile
+    File::Basename
 
 =head1 INSTALLATION
 
@@ -668,7 +679,7 @@ perl(1).
 L<Tie::FieldVals::Row>
 L<Tie::FieldVals::Select>
 L<Tie::FieldVals::Join>
-L<Tie::FieldVals::Join::Row>
+L<Tie::FieldVals::Row::Join>
 
 =head1 BUGS
 
@@ -682,7 +693,7 @@ Please report any bugs or feature requests to the author.
 
 =head1 COPYRIGHT AND LICENCE
 
-Copyright (c) 2004 by Kathryn Andersen
+Copyright (c) 2004-2008 by Kathryn Andersen
 
 This program is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.

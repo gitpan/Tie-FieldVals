@@ -1,15 +1,17 @@
---- #YAML:1.0
+---
 name: Tie-FieldVals
-version: 0.40
+version: 0.6202
 author:
   - Kathryn Andersen
-abstract: |-
-  an array tie for a file of enhanced Field:Value data
+abstract: an array tie for a file of enhanced Field:Value data
 license: perl
+resources:
+  license: http://dev.perl.org/licenses/
 requires:
   Carp: 0
   Data::Dumper: 0
   Fcntl: 0
+  File::Basename: 0
   Getopt::ArgvFile: 1.08
   Getopt::Long: 2.34
   Pod::Usage: 0
@@ -20,17 +22,20 @@ build_requires:
 provides:
   Tie::FieldVals:
     file: lib/Tie/FieldVals.pm
-    version: 0.40
+    version: 0.6202
   Tie::FieldVals::Join:
     file: lib/Tie/FieldVals/Join.pm
-    version: 0.40
-  Tie::FieldVals::Join::Row:
-    file: lib/Tie/FieldVals/Join/Row.pm
-    version: 0.40
+    version: 0.6202
   Tie::FieldVals::Row:
     file: lib/Tie/FieldVals/Row.pm
-    version: 0.40
+    version: 0.6202
+  Tie::FieldVals::Row::Join:
+    file: lib/Tie/FieldVals/Row/Join.pm
+    version: 0.6202
   Tie::FieldVals::Select:
     file: lib/Tie/FieldVals/Select.pm
-    version: 0.40
-generated_by: Module::Build version 0.26
+    version: 0.6202
+generated_by: Module::Build version 0.280801
+meta-spec:
+  url: http://module-build.sourceforge.net/META-spec-v1.2.html
+  version: 1.2

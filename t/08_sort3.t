@@ -14,7 +14,7 @@ my $df = tie @all_recs, 'Tie::FieldVals',
 # make a selection
 my @sel_recs = ();
 my $sel_obj = tie @sel_recs, 'Tie::FieldVals::Select',
-   all_data=>\@all_recs;
+   datafile=>'t/test_sort2.data';
 
 ok($sel_obj, "Tie::FieldVals:Select object made");
 ok(@sel_recs, "Tie::FieldVals::Select array has content");
